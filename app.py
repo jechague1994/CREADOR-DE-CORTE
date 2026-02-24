@@ -1,77 +1,89 @@
-﻿st.title("Generador de Ficha Tecnica - Magallan")
+﻿import streamlit as st
+from PIL import Image, ImageDraw, ImageFont
+import io
 
-# --- ENTRADA DE DATOS (SIDEBAR) ---
+# Configuracion de pagina
+st.set_page_config(page_title="Generador Magallan", layout="wide")
+
+st.title("Generador de Ficha Tecnica - Magallan")
+
+# --- PANEL DE CONTROL ---
 with st.sidebar:
-    st.header("Parametros de Cortina")
-    ancho_total = st.number_input("Ancho Fondo a Fondo (mts)", min_value=0.1, value=3.0, step=0.01)
-    alto_guia = st.number_input("Alto de Guia (mts)", min_value=0.1, value=2.5, step=0.01)
-    sumar_rollo = st.checkbox("Incluir rollo (+0.40m)", value=True)
+    st.header("Datos de la Cortina")
+    ancho = st.number_input("Ancho Fondo a Fondo (mts)", value=3.0, step=0.01)
+    alto_v = st.number_input("Alto de Guia (mts)", value=2.5, step=0.01)
+    rollo = st.checkbox("Incluir rollo (+0.40m)", value=True)
     
-    guias = {"60x50mm": 0.06, "80x60mm": 0.08, "100x60mm": 0.10, "150x60mm": 0.15}
-    guia_sel = st.selectbox("Tipo de Guia", list(guias.keys()))
+    guias_dict = {"60x50mm": 0.06, "80x60mm": 0.08, "100x60mm": 0.10, "150x60mm": 0.15}
+    tipo_guia = st.selectbox("Guia", list(guias_dict.keys()))
     
-    sistema = st.selectbox("Sistema de Elevacion", [
-        "Motor Paralelo", "Motor Tubular", "Motor Semiblindado", 
-        "Motor Blindado", "Sistema a Resorte", "Sistema a Cadena"
-    ])
-    lado = st.radio("Lado del Motor/Mando", ["Izquierda", "Derecha"])
+    sis = st.selectbox("Sistema", ["Motor Paralelo", "Motor Tubular", "Motor Semiblindado", "Motor Blindado", "Sistema a Resorte", "Sistema a Cadena"])
+    lado_m = st.radio("Lado del mando", ["Izquierda", "Derecha"])
+    
+    # Nueva opcion de tablilla
+    tipo_tablilla = st.selectbox("Tipo de Tablilla", ["Ciega", "Microperforada", "Troquelada"])
 
 # --- CALCULOS ---
-alto_final = alto_guia + 0.40 if sumar_rollo else alto_guia
-paso_libre = ancho_total - (guias[guia_sel] * 2)
+alto_f = alto_v + 0.40 if rollo else alto_v
+paso_l = ancho - (guias_dict[tipo_guia] * 2)
 
-# --- GENERACION DE IMAGEN ---
+# --- PROCESO DE IMAGEN ---
 if st.button("GENERAR FICHA"):
     try:
-        # Carga de imagen base
+        # 1. Abrir la imagen base (La de las flechas)
         img = Image.open("plantilla_base.jpg").convert("RGB")
         draw = ImageDraw.Draw(img)
         
-        # Intentamos usar fuente por defecto de PIL (mas compatible con Streamlit Cloud)
-        # Dibujamos rectangulos blancos de fondo para que los textos resalten
-        
-        # 1. Medida: ANCHO TOTAL (Abajo centro)
-        draw.rectangle([350, 830, 650, 880], fill="white", outline="black")
-        draw.text((410, 845), f"ANCHO: {ancho_total:.2f} mts", fill="black")
+        # 2. Dibujar medidas (Coordenadas ajustadas)
+        # Ancho Total
+        draw.rectangle([400, 830, 600, 880], fill="white")
+        draw.text((410, 840), f"ANCHO: {ancho:.2f}m", fill="black")
 
-        # 2. Medida: PASO LIBRE (Sobre flecha roja)
-        draw.rectangle([350, 720, 650, 770], fill="white", outline="red")
-        draw.text((380, 735), f"PASO LIBRE: {paso_libre:.2f} mts", fill="red")
+        # Paso Libre
+        draw.rectangle([400, 720, 650, 770], fill="white")
+        draw.text((410, 730), f"PASO LIBRE: {paso_l:.2f}m", fill="red")
 
-        # 3. Medida: ALTO TOTAL (Derecha)
-        draw.rectangle([830, 380, 980, 480], fill="white", outline="black")
-        draw.text((840, 410), f"ALTO TOTAL:", fill="black")
-        draw.text((840, 440), f"{alto_final:.2f} mts", fill="black")
+        # Alto
+        draw.rectangle([850, 400, 980, 450], fill="white")
+        draw.text((860, 410), f"ALTO: {alto_f:.2f}m", fill="black")
 
-        # 4. ESPACIO ROLLO (Si aplica)
-        if sumar_rollo:
-            draw.text((720, 110), "ROLLO: 0.40m", fill="blue")
-
-        # 5. PEGAR MOTOR/SISTEMA
-        archivo_motor = sistema.lower().replace(" ", "_") + ".png"
+        # 3. Colocar Motor desde assets
+        nom_m = sis.lower().replace(" ", "_") + ".png"
         try:
-            motor_img = Image.open(f"assets/{archivo_motor}").convert("RGBA")
-            motor_img.thumbnail((200, 200)) # Ajuste de tamaño
-            
-            if lado == "Izquierda":
-                motor_img = motor_img.transpose(Image.FLIP_LEFT_RIGHT)
-                # Coordenadas eje izquierdo
-                img.paste(motor_img, (60, 30), motor_img)
+            m_img = Image.open(f"assets/{nom_m}").convert("RGBA")
+            m_img.thumbnail((200, 200))
+            if lado_m == "Izquierda":
+                m_img = m_img.transpose(Image.FLIP_LEFT_RIGHT)
+                img.paste(m_img, (50, 30), m_img)
             else:
-                # Coordenadas eje derecho
-                img.paste(motor_img, (720, 30), motor_img)
-        except Exception as e_motor:
-            st.warning(f"No se pudo cargar el motor '{archivo_motor}'. Verifique carpeta assets.")
+                img.paste(m_img, (750, 30), m_img)
+        except:
+            st.warning(f"No se encontro: assets/{nom_m}")
 
-        # --- MOSTRAR Y DESCARGAR ---
+        # 4. Colocar Muestra de Tablilla
+        # Usamos la imagen que subiste de las duelas
+        try:
+            tab_img = Image.open("assets/duela_semi_plana.png").convert("RGB")
+            # Definimos coordenadas de recorte para cada tipo (ajustables)
+            cortes = {
+                "Ciega": (10, 10, 300, 150),
+                "Microperforada": (10, 160, 300, 310),
+                "Troquelada": (10, 320, 300, 470)
+            }
+            muestra = tab_img.crop(cortes[tipo_tablilla])
+            muestra.thumbnail((150, 150))
+            # La pegamos en la esquina inferior izquierda como referencia
+            img.paste(muestra, (50, 750))
+            draw.text((50, 720), f"Tablilla: {tipo_tablilla}", fill="black")
+        except:
+            st.info("Nota: Para ver la tablilla, sube 'duela_semi_plana.png' a assets.")
+
+        # 5. Mostrar y Descargar
         st.image(img, use_container_width=True)
         
-        # Convertir a PDF para descargar
-        buf = io.BytesIO()
-        img.save(buf, format="PDF")
-        st.download_button("Descargar Ficha en PDF", buf.getvalue(), "Ficha_Magallan.pdf", "application/pdf")
+        pdf_io = io.BytesIO()
+        img.save(pdf_io, format="PDF")
+        st.download_button("📥 Descargar Ficha PDF", pdf_io.getvalue(), f"Ficha_Magallan_{ancho}x{alto_f}.pdf")
 
-    except FileNotFoundError:
-        st.error("Error: Asegurate de que 'plantilla_base.jpg' este en la raiz de tu GitHub.")
     except Exception as e:
-        st.error(f"Ocurrio un error inesperado: {e}")
+        st.error(f"Error critico: {e}. Verifique que 'plantilla_base.jpg' este en GitHub.")
