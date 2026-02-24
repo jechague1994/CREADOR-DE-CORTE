@@ -1,4 +1,4 @@
-﻿import streamlit as st
+﻿[20:23, 2/24/2026] Jonathan: import streamlit as st
 from PIL import Image, ImageDraw, ImageFont
 import io
 
@@ -65,3 +65,42 @@ if st.button("GENERAR FICHA"):
 
     except Exception as e:
         st.error(f"Error: {e}")
+[20:31, 2/24/2026] Jonathan: # --- DENTRO DEL BLOQUE: if st.button("GENERAR FICHA"): ---
+
+    img = Image.open("plantilla_base.jpg").convert("RGB") # Usamos RGB para asegurar compatibilidad
+    draw = ImageDraw.Draw(img)
+    
+    # Intentamos cargar una fuente mas grande o usamos una simulada
+    # Si no tienes Arial.ttf, el texto sera pequeño, por eso usamos un rectangulo de fondo
+    
+    # 1. Dibujar rectangulos de fondo para que las medidas se vean
+    # Ancho total
+    draw.rectangle([400, 820, 600, 870], fill="white") 
+    draw.text((420, 835), f"{ancho_total:.2f} mts", fill="black")
+    
+    # Paso Libre (en rojo)
+    draw.rectangle([400, 710, 650, 760], fill="white")
+    draw.text((420, 725), f"PASO LIBRE: {paso_libre:.2f} mts", fill="red")
+    
+    # Alto final
+    draw.rectangle([810, 410, 950, 460], fill="white")
+    draw.text((820, 420), f"{alto_final:.2f} mts", fill="black")
+
+    # 2. Insertar Motor (Ajuste de posicion)
+    nombre_asset = sistema.lower().replace(" ", "_") + ".png"
+    try:
+        motor_img = Image.open(f"assets/{nombre_asset}").convert("RGBA")
+        motor_img.thumbnail((250, 250)) # Lo hacemos un poco mas grande
+        
+        if lado == "Izquierda":
+            motor_img = motor_img.transpose(Image.FLIP_LEFT_RIGHT)
+            # Pegamos el motor cerca del eje superior izquierdo
+            img.paste(motor_img, (50, 50), motor_img)
+        else:
+            # Pegamos el motor cerca del eje superior derecho
+            img.paste(motor_img, (700, 50), motor_img)
+    except:
+        st.warning(f"No se pudo superponer el motor: {nombre_asset}")
+
+    # 3. MOSTRAR LA IMAGEN RESULTANTE (Este es el paso clave)
+    st.image(img, caption="Resultado Final con Medidas", use_container_width=True)
