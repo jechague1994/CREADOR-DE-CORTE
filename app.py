@@ -1,98 +1,77 @@
-﻿[20:31, 2/24/2026] Jonathan: # --- DENTRO DEL BLOQUE: if st.button("GENERAR FICHA"): ---
+﻿st.title("Generador de Ficha Tecnica - Magallan")
 
-    img = Image.open("plantilla_base.jpg").convert("RGB") # Usamos RGB para asegurar compatibilidad
-    draw = ImageDraw.Draw(img)
-    
-    # Intentamos cargar una fuente mas grande o usamos una simulada
-    # Si no tienes Arial.ttf, el texto sera pequeño, por eso usamos un rectangulo de fondo
-    
-    # 1. Dibujar rectangulos de fondo para que las medidas se vean
-    # Ancho total
-    draw.rectangle([400, 820, 600, 870], fill="white") 
-    draw.text((420, 835), f"{ancho_total:.2f} mts", fill="black")
-    
-    # Paso Libre (en rojo)
-    draw.rectangle([400, 710, 650, 760], fill="white")
-    draw.text((420, 725), f"PASO LIBRE: {paso_libre:.2f} mts", fill="red")
-    
-    # Alto final
-    draw.rectang…
-[20:36, 2/24/2026] Jonathan: import streamlit as st
-from PIL import Image, ImageDraw, ImageFont
-import io
-
-# Configuración sin caracteres especiales para evitar errores de encoding
-st.set_page_config(page_title="Magallan Cortinas", layout="wide")
-
-st.title("Generador de Ficha Tecnica - Magallan")
-
-# --- PARAMETROS ---
+# --- ENTRADA DE DATOS (SIDEBAR) ---
 with st.sidebar:
-    st.header("Entrada de Datos")
-    ancho_total = st.number_input("Ancho Fondo a Fondo (mts)", value=3.0)
-    alto_guia = st.number_input("Alto de Guia (mts)", value=2.5)
-    sumar_rollo = st.checkbox("Sumar rollo (+0.40m)", value=True)
+    st.header("Parametros de Cortina")
+    ancho_total = st.number_input("Ancho Fondo a Fondo (mts)", min_value=0.1, value=3.0, step=0.01)
+    alto_guia = st.number_input("Alto de Guia (mts)", min_value=0.1, value=2.5, step=0.01)
+    sumar_rollo = st.checkbox("Incluir rollo (+0.40m)", value=True)
     
-    opciones_guias = {"60x50mm": 0.06, "80x60mm": 0.08, "100x60mm": 0.10, "150x60mm": 0.15}
-    guia_sel = st.selectbox("Tipo de Guia", list(opciones_guias.keys()))
+    guias = {"60x50mm": 0.06, "80x60mm": 0.08, "100x60mm": 0.10, "150x60mm": 0.15}
+    guia_sel = st.selectbox("Tipo de Guia", list(guias.keys()))
     
     sistema = st.selectbox("Sistema de Elevacion", [
         "Motor Paralelo", "Motor Tubular", "Motor Semiblindado", 
         "Motor Blindado", "Sistema a Resorte", "Sistema a Cadena"
     ])
-    lado = st.radio("Lado del Motor", ["Izquierda", "Derecha"])
+    lado = st.radio("Lado del Motor/Mando", ["Izquierda", "Derecha"])
 
 # --- CALCULOS ---
 alto_final = alto_guia + 0.40 if sumar_rollo else alto_guia
-paso_libre = ancho_total - (opciones_guias[guia_sel] * 2)
+paso_libre = ancho_total - (guias[guia_sel] * 2)
 
-# --- BOTON DE ACCION ---
+# --- GENERACION DE IMAGEN ---
 if st.button("GENERAR FICHA"):
     try:
-        # Cargamos la imagen de la CORTINA COMPLETA
+        # Carga de imagen base
         img = Image.open("plantilla_base.jpg").convert("RGB")
         draw = ImageDraw.Draw(img)
         
-        # Intentamos usar una fuente legible, sino la de sistema
+        # Intentamos usar fuente por defecto de PIL (mas compatible con Streamlit Cloud)
+        # Dibujamos rectangulos blancos de fondo para que los textos resalten
+        
+        # 1. Medida: ANCHO TOTAL (Abajo centro)
+        draw.rectangle([350, 830, 650, 880], fill="white", outline="black")
+        draw.text((410, 845), f"ANCHO: {ancho_total:.2f} mts", fill="black")
+
+        # 2. Medida: PASO LIBRE (Sobre flecha roja)
+        draw.rectangle([350, 720, 650, 770], fill="white", outline="red")
+        draw.text((380, 735), f"PASO LIBRE: {paso_libre:.2f} mts", fill="red")
+
+        # 3. Medida: ALTO TOTAL (Derecha)
+        draw.rectangle([830, 380, 980, 480], fill="white", outline="black")
+        draw.text((840, 410), f"ALTO TOTAL:", fill="black")
+        draw.text((840, 440), f"{alto_final:.2f} mts", fill="black")
+
+        # 4. ESPACIO ROLLO (Si aplica)
+        if sumar_rollo:
+            draw.text((720, 110), "ROLLO: 0.40m", fill="blue")
+
+        # 5. PEGAR MOTOR/SISTEMA
+        archivo_motor = sistema.lower().replace(" ", "_") + ".png"
         try:
-            font = ImageFont.load_default() # Para GitHub, esto es lo mas seguro
-        except:
-            font = ImageFont.load_default()
-
-        # Dibujamos las medidas con rectangulos blancos de fondo para que se vean SI O SI
-        # Ancho Total (Abajo)
-        draw.rectangle([400, 830, 600, 880], fill="white")
-        draw.text((410, 840), f"ANCHO: {ancho_total:.2f}m", fill="black")
-
-        # Paso Libre (Centro)
-        draw.rectangle([400, 720, 650, 770], fill="white")
-        draw.text((410, 730), f"PASO LIBRE: {paso_libre:.2f}m", fill="red")
-
-        # Alto (Derecha)
-        draw.rectangle([850, 400, 980, 450], fill="white")
-        draw.text((860, 410), f"ALTO: {alto_final:.2f}m", fill="black")
-
-        # Insertar el dibujo del motor
-        nombre_motor = sistema.lower().replace(" ", "_") + ".png"
-        try:
-            motor_ico = Image.open(f"assets/{nombre_motor}").convert("RGBA")
-            motor_ico.thumbnail((250, 250)) # Lo hacemos grande para que se note
+            motor_img = Image.open(f"assets/{archivo_motor}").convert("RGBA")
+            motor_img.thumbnail((200, 200)) # Ajuste de tamaño
             
             if lado == "Izquierda":
-                motor_ico = motor_ico.transpose(Image.FLIP_LEFT_RIGHT)
-                img.paste(motor_ico, (50, 50), motor_ico)
+                motor_img = motor_img.transpose(Image.FLIP_LEFT_RIGHT)
+                # Coordenadas eje izquierdo
+                img.paste(motor_img, (60, 30), motor_img)
             else:
-                img.paste(motor_ico, (700, 50), motor_ico)
-        except:
-            st.warning(f"No se encontro la imagen: assets/{nombre_motor}")
+                # Coordenadas eje derecho
+                img.paste(motor_img, (720, 30), motor_img)
+        except Exception as e_motor:
+            st.warning(f"No se pudo cargar el motor '{archivo_motor}'. Verifique carpeta assets.")
 
-        # Mostrar resultado
+        # --- MOSTRAR Y DESCARGAR ---
         st.image(img, use_container_width=True)
         
-        # Opcion de PDF
+        # Convertir a PDF para descargar
         buf = io.BytesIO()
         img.save(buf, format="PDF")
-        st.download_button("Descargar Ficha en PDF", buf.getvalue(), "Ficha_Magallan.pdf")
+        st.download_button("Descargar Ficha en PDF", buf.getvalue(), "Ficha_Magallan.pdf", "application/pdf")
 
     except FileNotFoundError:
-        st.error("Falta el archivo 'plantilla_base.jpg' en el repositorio.")
+        st.error("Error: Asegurate de que 'plantilla_base.jpg' este en la raiz de tu GitHub.")
+    except Exception as e:
+        st.error(f"Ocurrio un error inesperado: {e}")
